@@ -1,0 +1,26 @@
+{
+  "name": "solana-rpc-performance-benchmark",
+  "version": "1.0.0",
+  "description": "Advanced RPC performance testing and reporting suite",
+  "main": "benchmark.js",
+  "scripts": {
+    "benchmark": "node benchmark.js",
+    "test": "node run-tests.js",
+    "report": "node benchmark.js --format html",
+    "csv": "node benchmark.js --format csv",
+    "compare": "./run-all.sh"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.3",
+    "fs-extra": "^11.1.1",
+    "moment": "^2.29.4"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "keywords": ["solana", "rpc", "grpc", "performance", "benchmark", "testing"],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,111 @@
+{
+  "rpcs": {
+    "solana-mainnet-official": {
+      "id": "solana-mainnet-official",
+      "name": "Solana Official Mainnet",
+      "url": "https://api.mainnet-beta.solana.com",
+      "chain": "solana",
+      "network": "mainnet",
+      "provider": "Solana Labs",
+      "region": "Global",
+      "tier": "free",
+      "rateLimit": "100 req/s",
+      "features": [
+        "http",
+        "websocket"
+      ],
+      "status": "active",
+      "description": "Official Solana mainnet RPC endpoint",
+      "documentation": "https://docs.solana.com/developing/clients/jsonrpc-api",
+      "methods": [
+        "getVersion",
+        "getSlot",
+        "getBalance",
+        "getAccountInfo"
+      ],
+      "metadata": {
+        "loadBalanced": true,
+        "cacheEnabled": true,
+        "supportedVersions": [
+          "1.14+"
+        ],
+        "averageLatency": "200ms",
+        "uptime": "99.9%"
+      }
+    },
+    "helius-mainnet": {
+      "id": "helius-mainnet",
+      "name": "Helius Mainnet",
+      "url": "https://chorions-inveighs-joaigjuvuf-dedicated.helius-rpc.com/?api-key=1f3002b0-f95c-4408-b882-38db8cb9b199",
+      "chain": "solana",
+      "network": "mainnet",
+      "provider": "Helius",
+      "region": "Global",
+      "tier": "premium",
+      "rateLimit": "1000 req/s",
+      "features": [
+        "http",
+        "websocket",
+        "priority-fee-api"
+      ],
+      "status": "active",
+      "description": "Helius high-performance Solana RPC with priority fee optimization",
+      "documentation": "https://docs.helius.xyz/",
+      "methods": [
+        "getVersion",
+        "getSlot",
+        "getBalance",
+        "getAccountInfo",
+        "getPriorityFeeEstimate"
+      ],
+      "metadata": {
+        "loadBalanced": true,
+        "cacheEnabled": true,
+        "supportedVersions": [
+          "1.14+"
+        ],
+        "averageLatency": "100ms",
+        "uptime": "99.95%",
+        "specialization": "mev-protection"
+      }
+    }
+  },
+  "chains": {
+    "solana": {
+      "name": "Solana",
+      "symbol": "SOL",
+      "chainId": "solana",
+      "defaultMethods": [
+        "getVersion",
+        "getSlot",
+        "getBalance",
+        "getAccountInfo"
+      ],
+      "documentation": "https://docs.solana.com/developing/clients/jsonrpc-api"
+    }
+  },
+  "benchmark": {
+    "defaultIterations": 100,
+    "timeout": 30000,
+    "defaultRpcs": [
+      "solana-mainnet-official"
+    ],
+    "testMethods": {
+      "solana": [
+        "getVersion",
+        "getSlot"
+      ]
+    },
+    "reporting": {
+      "outputFormat": "json",
+      "saveResults": true,
+      "resultsDirectory": "./reports",
+      "includeMetadata": true,
+      "groupBy": [
+        "provider",
+        "tier",
+        "network"
+      ]
+    }
+  }
+}

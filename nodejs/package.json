@@ -1,0 +1,29 @@
+{
+  "name": "solana-rpc-performance-nodejs",
+  "version": "1.0.0",
+  "description": "Solana RPC/gRPC performance testing in Node.js",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js",
+    "benchmark": "node benchmark.js",
+    "laserstream": "node laserstream-benchmark.js",
+    "test-laserstream": "node test-laserstream-connection.js",
+    "websocket-benchmark": "node websocket-block-benchmark.js"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.87.6",
+    "node-fetch": "^3.3.2",
+    "helius-laserstream": "^0.1.0",
+    "commander": "^11.1.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.5"
+  },
+  "keywords": ["solana", "rpc", "grpc", "performance", "benchmark"],
+  "author": "",
+  "license": "MIT"
+}
