@@ -286,11 +286,11 @@ fn announce_winner(slot: u64, ls_event: &BlockEvent, rpc_event: &BlockEvent) {
         ("🤝 Tie", "Same time".to_string())
     };
 
-    let overall_status = if ls_latency < 900 && rpc_latency < 900 {
+    let overall_status = if ls_latency < 900 || rpc_latency < 900 {
         "🟢 EXCELLENT"
-    } else if ls_latency < 1200 && rpc_latency < 1200 {
+    } else if ls_latency < 1200 || rpc_latency < 1200 {
         "🟡 GOOD"
-    } else if ls_latency < 2000 && rpc_latency < 2000 {
+    } else if ls_latency < 2000 || rpc_latency < 2000 {
         "🟠 FAIR"
     } else if ls_latency < 900 || rpc_latency < 900 {
         "🟢 EXCELLENT"
