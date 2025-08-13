@@ -107,33 +107,61 @@ The tools automatically use RPC configurations from `../shared/config.json`. Exa
 Slot       | Winner           | LaserStream     | RPC            | Advantage   | Status
 ---------------------------------------------------------------------------
 359748062  | 🏆 LaserStream   | 2175ms          | 3014ms          | 839ms     | 🔴 SLOW
+
 359748066  | 🏆 LaserStream   | 1390ms          | 2052ms          | 662ms     | 🟠 FAIR
+
 359748069  | 🏆 LaserStream   | 1614ms          | 2375ms          | 761ms     | 🟠 FAIR
+
 359748073  | 🏆 LaserStream   | 1175ms          | 2113ms          | 938ms     | 🟡 GOOD
+
 359748077  | 🏆 LaserStream   | 1649ms          | 2248ms          | 599ms     | 🟠 FAIR
+
 359748080  | 🏆 LaserStream   | 1789ms          | 2528ms          | 739ms     | 🟠 FAIR
+
 359748083  | 🏆 LaserStream   | 861ms           | 2078ms          | 1217ms    | 🟢 EXCELLENT
+
 359748087  | 🏆 LaserStream   | 1435ms          | 2193ms          | 758ms     | 🟠 FAIR
+
 359748091  | 🏆 LaserStream   | 853ms           | 1485ms          | 632ms     | 🟢 EXCELLENT
+
 359748094  | 🏆 LaserStream   | 1044ms          | 3190ms          | 2146ms    | 🟡 GOOD
+
 359748101  | 🏆 LaserStream   | 1666ms          | 2310ms          | 644ms     | 🟠 FAIR
+
 359748104  | 🏆 LaserStream   | 841ms           | 1372ms          | 531ms     | 🟢 EXCELLENT
+
 359748107  | 🏆 LaserStream   | 964ms           | 1567ms          | 603ms     | 🟡 GOOD
+
 359748110  | 🏆 LaserStream   | 1107ms          | 1607ms          | 500ms     | 🟡 GOOD
+
 359748113  | 🏆 LaserStream   | 1387ms          | 2347ms          | 960ms     | 🟠 FAIR
+
 359748117  | 🏆 LaserStream   | 929ms           | 1737ms          | 808ms     | 🟡 GOOD
+
 359748120  | 🏆 LaserStream   | 1081ms          | 1756ms          | 675ms     | 🟡 GOOD
+
 359748123  | 🏆 LaserStream   | 1159ms          | 1764ms          | 605ms     | 🟡 GOOD
+
 359748126  | 🏆 LaserStream   | 1253ms          | 2264ms          | 1011ms    | 🟠 FAIR
+
 359748130  | 🏆 LaserStream   | 787ms           | 1093ms          | 306ms     | 🟢 EXCELLENT
+
 359748132  | 🏆 LaserStream   | 1569ms          | 2300ms          | 731ms     | 🟠 FAIR
+
 359748135  | 🏆 LaserStream   | 1650ms          | 2538ms          | 888ms     | 🟠 FAIR
+
 359748139  | 🏆 LaserStream   | 1133ms          | 1387ms          | 254ms     | 🟡 GOOD
+
 359748141  | 🏆 LaserStream   | 873ms           | 1755ms          | 882ms     | 🟢 EXCELLENT
+
 359748145  | 🏆 LaserStream   | 1375ms          | 1724ms          | 349ms     | 🟠 FAIR
+
 359748147  | 🏆 LaserStream   | 1096ms          | 1635ms          | 539ms     | 🟡 GOOD
+
 359748150  | 🏆 LaserStream   | 1215ms          | 1643ms          | 428ms     | 🟠 FAIR
+
 359748152  | 🏆 LaserStream   | 993ms           | 1773ms          | 780ms     | 🟡 GOOD
+
 359748155  | 🏆 LaserStream   | 1083ms          | 1730ms          | 647ms     | 🟡 GOOD
 
 #### Key Observations:
