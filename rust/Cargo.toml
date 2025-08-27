@@ -15,9 +15,6 @@ path = "src/bin/laserstream_benchmark.rs"
 name = "rpc_vs_laserstream_logger"
 path = "src/bin/rpc_vs_laserstream_logger.rs"
 
-[[bin]]
-name = "rpc_only_benchmark"
-path = "src/bin/rpc_only_benchmark.rs"
 
 [[bin]]
 name = "rpc_latency_test"
@@ -27,13 +24,30 @@ path = "src/bin/rpc_latency_test.rs"
 name = "helius_proper_latency"
 path = "src/bin/helius_proper_latency.rs"
 
-[[bin]]
-name = "rpc_method2_benchmark"
-path = "src/bin/rpc_method2_benchmark.rs"
 
 [[bin]]
 name = "racing_comparison"
 path = "src/bin/racing_comparison.rs"
+
+[[bin]]
+name = "entry_sub"
+path = "src/bin/entry_sub.rs"
+
+[[bin]]
+name = "real_shred_inspector"
+path = "src/bin/real_shred_inspector.rs"
+
+[[bin]]
+name = "shred_block_correlator"
+path = "src/bin/shred_block_correlator.rs"
+
+[[bin]]
+name = "shred_vs_block_speed_test"
+path = "src/bin/shred_vs_block_speed_test.rs"
+
+[[bin]]
+name = "latency_calculator"
+path = "src/bin/latency_calculator.rs"
 
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }
@@ -47,3 +61,7 @@ tokio-tungstenite = "0.20"
 futures-util = "0.3"
 futures = "0.3"
 helius-laserstream = "0.0.9"
+base64 = "0.21"
+hex = "0.4"
+tracing = "0.1.41"
+yellowstone-grpc-proto = "9.0.0"

@@ -1,13 +1,13 @@
+use anyhow::Result;
 use clap::Parser;
 use futures::StreamExt;
 use helius_laserstream::{
     grpc::{SubscribeRequest, SubscribeRequestFilterBlocks},
     subscribe, LaserstreamConfig,
 };
+use serde_json;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde_json;
-use anyhow::Result;
 
 #[derive(Parser)]
 #[command(name = "laserstream-benchmark")]
@@ -16,7 +16,11 @@ struct Args {
     #[arg(long, help = "Helius API key")]
     api_key: Option<String>,
 
-    #[arg(long, default_value = "https://laserstream-mainnet-tyo.helius-rpc.com", help = "Helius Laserstream endpoint")]
+    #[arg(
+        long,
+        default_value = "https://laserstream-mainnet-tyo.helius-rpc.com",
+        help = "Helius Laserstream endpoint"
+    )]
     endpoint: String,
 
     #[arg(long, default_value = "5", help = "Test duration in minutes")]
@@ -28,9 +32,6 @@ struct Args {
 
 #[derive(Debug, Clone)]
 struct BlockLatencyData {
-    slot: u64,
-    block_time: i64,
-    received_time: i64,
     propagation_latency_ms: i64,
 }
 
@@ -38,7 +39,9 @@ struct BlockLatencyData {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let api_key = args.api_key.clone()
+    let api_key = args
+        .api_key
+        .clone()
         .or_else(|| std::env::var("HELIUS_API_KEY").ok())
         .unwrap_or_else(|| "9de07723-0030-4ee0-b175-6722231d5d97".to_string());
 
@@ -59,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     block_filters.insert(
         "all_blocks".to_string(),
         SubscribeRequestFilterBlocks {
-            account_include: vec![], // All blocks
+            account_include: vec![],           // All blocks
             include_transactions: Some(false), // Don't need tx data for latency test
             include_accounts: Some(false),
             include_entries: Some(false),
@@ -91,13 +94,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(result) = stream.next().await {
             match result {
                 Ok(update) => {
-                    let received_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)?
-                        .as_millis() as i64;
+                    let received_time =
+                        SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as i64;
 
-                    if let Some(helius_laserstream::grpc::subscribe_update::UpdateOneof::Block(block)) = update.update_oneof {
+                    if let Some(helius_laserstream::grpc::subscribe_update::UpdateOneof::Block(
+                        block,
+                    )) = update.update_oneof
+                    {
                         let slot = block.slot;
-                        let block_time = block.block_time.map(|bt| bt.timestamp).unwrap_or(received_time / 1000);
+                        let block_time = block
+                            .block_time
+                            .map(|bt| bt.timestamp)
+                            .unwrap_or(received_time / 1000);
                         let propagation_latency_ms = received_time - (block_time * 1000);
 
                         // Filter out unrealistic latencies (negative or too large)
@@ -108,9 +116,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             max_latency = max_latency.max(propagation_latency_ms);
 
                             let latency_data = BlockLatencyData {
-                                slot,
-                                block_time,
-                                received_time,
                                 propagation_latency_ms,
                             };
 
@@ -118,7 +123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                             // Real-time feedback
                             print!("⚡ Slot {}: {}ms", slot, propagation_latency_ms);
-                            
+
                             if propagation_latency_ms < 900 {
                                 println!(" 🟢 EXCELLENT");
                             } else if propagation_latency_ms < 1200 {
@@ -132,7 +137,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // Show running average every 10 blocks
                             if block_count % 10 == 0 {
                                 let avg = total_latency / block_count as i64;
-                                println!("📊 Running Average: {}ms (after {} blocks)", avg, block_count);
+                                println!(
+                                    "📊 Running Average: {}ms (after {} blocks)",
+                                    avg, block_count
+                                );
                                 println!();
                             }
                         }
@@ -211,28 +219,47 @@ fn print_benchmark_results(latencies: &[BlockLatencyData], args: &Args) {
         println!("P95: {}ms", p95);
         println!("P99: {}ms", p99);
         println!();
-        
+
         println!("⚡ Realistic Speed Distribution:");
-        println!("Sub-900ms (Excellent): {}/{} ({:.1}%)", sub_900ms, count, (sub_900ms as f64 / count as f64) * 100.0);
-        println!("Sub-1200ms (Good): {}/{} ({:.1}%)", sub_1200ms, count, (sub_1200ms as f64 / count as f64) * 100.0);
-        println!("Sub-2000ms (Fair): {}/{} ({:.1}%)", sub_2000ms, count, (sub_2000ms as f64 / count as f64) * 100.0);
+        println!(
+            "Sub-900ms (Excellent): {}/{} ({:.1}%)",
+            sub_900ms,
+            count,
+            (sub_900ms as f64 / count as f64) * 100.0
+        );
+        println!(
+            "Sub-1200ms (Good): {}/{} ({:.1}%)",
+            sub_1200ms,
+            count,
+            (sub_1200ms as f64 / count as f64) * 100.0
+        );
+        println!(
+            "Sub-2000ms (Fair): {}/{} ({:.1}%)",
+            sub_2000ms,
+            count,
+            (sub_2000ms as f64 / count as f64) * 100.0
+        );
         println!();
-        
+
         println!("🎯 Performance Verdict:");
         match get_performance_verdict(avg) {
-            "excellent" => println!("✅ EXCELLENT - Sub-900ms latency! Outstanding real-world performance"),
-            "very_good" => println!("✅ VERY GOOD - Sub-1200ms latency, great for most applications"),
+            "excellent" => {
+                println!("✅ EXCELLENT - Sub-900ms latency! Outstanding real-world performance")
+            }
+            "very_good" => {
+                println!("✅ VERY GOOD - Sub-1200ms latency, great for most applications")
+            }
             "good" => println!("🟡 GOOD - Sub-2000ms latency, acceptable for general use"),
             "fair" => println!("🟠 FAIR - 2-3s latency, consider region optimization"),
             _ => println!("🔴 SLOW - >3s latency, investigate network/provider issues"),
         }
-        
+
         println!();
         println!("📈 Compared to typical RPC providers:");
         println!("• Regular HTTP RPC: 3-5 seconds");
         println!("• Premium WebSocket: 500-2000ms");
         println!("• Laserstream: {:.0}ms average", avg);
-        
+
         if avg < 200.0 {
             println!("🏆 CLAIM VERIFIED: Laserstream IS significantly faster!");
         } else if avg < 500.0 {

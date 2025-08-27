@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::Parser;
 use futures::StreamExt;
 use helius_laserstream::{
@@ -12,7 +13,6 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tokio::time;
-use anyhow::Result;
 
 #[derive(Parser)]
 #[command(name = "racing-comparison")]
@@ -21,10 +21,18 @@ struct Args {
     #[arg(long, help = "Helius API key")]
     api_key: Option<String>,
 
-    #[arg(long, default_value = "https://laserstream-mainnet-tyo.helius-rpc.com", help = "Helius Laserstream endpoint")]
+    #[arg(
+        long,
+        default_value = "https://laserstream-mainnet-tyo.helius-rpc.com",
+        help = "Helius Laserstream endpoint"
+    )]
     endpoint: String,
 
-    #[arg(long, default_value = "../shared/config.json", help = "Config file path")]
+    #[arg(
+        long,
+        default_value = "../shared/config.json",
+        help = "Config file path"
+    )]
     config: String,
 
     #[arg(long, default_value = "3", help = "Test duration in minutes")]
@@ -50,10 +58,7 @@ struct RPCConfig {
 
 #[derive(Debug, Clone)]
 struct BlockEvent {
-    slot: u64,
-    block_time: Option<i64>,
     received_time: i64,
-    source: String,
     latency_ms: Option<i64>,
 }
 
@@ -63,7 +68,9 @@ type SharedBlocks = Arc<Mutex<HashMap<u64, (Option<BlockEvent>, Option<BlockEven
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let api_key = args.api_key.clone()
+    let api_key = args
+        .api_key
+        .clone()
         .or_else(|| std::env::var("HELIUS_API_KEY").ok())
         .unwrap_or_else(|| "9de07723-0030-4ee0-b175-6722231d5d97".to_string());
 
@@ -74,9 +81,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     let config = load_config(&args.config)?;
-    
+
     // Get premium RPC (Helius) or fallback to first active RPC
-    let rpc = config.rpcs.values()
+    let rpc = config
+        .rpcs
+        .values()
         .find(|r| r.provider == "Helius" && r.status == "active")
         .or_else(|| config.rpcs.values().find(|r| r.status == "active"))
         .ok_or_else(|| anyhow::anyhow!("No active RPCs found"))?;
@@ -94,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.endpoint.clone(),
         args.duration,
         shared_blocks.clone(),
-        args.verbose
+        args.verbose,
     ));
 
     // Start RPC monitoring
@@ -102,13 +111,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rpc.clone(),
         args.duration,
         shared_blocks.clone(),
-        args.verbose
+        args.verbose,
     ));
 
     println!("🚀 Starting the race...");
     println!("🏆 First to detect each new block wins!");
     println!();
-    println!("Slot       | Winner           | LaserStream     | RPC            | Advantage   | Status");
+    println!(
+        "Slot       | Winner           | LaserStream     | RPC            | Advantage   | Status"
+    );
     println!("{}", "-".repeat(75));
 
     // Wait for both to complete
@@ -122,7 +133,7 @@ async fn monitor_laserstream(
     endpoint: String,
     duration_minutes: u64,
     shared_blocks: SharedBlocks,
-    verbose: bool
+    verbose: bool,
 ) -> Result<()> {
     let config = LaserstreamConfig {
         api_key,
@@ -156,20 +167,19 @@ async fn monitor_laserstream(
         if let Some(result) = stream.next().await {
             match result {
                 Ok(update) => {
-                    let received_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)?
-                        .as_millis() as i64;
+                    let received_time =
+                        SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as i64;
 
-                    if let Some(helius_laserstream::grpc::subscribe_update::UpdateOneof::Block(block)) = update.update_oneof {
+                    if let Some(helius_laserstream::grpc::subscribe_update::UpdateOneof::Block(
+                        block,
+                    )) = update.update_oneof
+                    {
                         let slot = block.slot;
                         let block_time = block.block_time.map(|bt| bt.timestamp);
                         let latency = block_time.map(|bt| received_time - (bt * 1000));
 
                         let block_event = BlockEvent {
-                            slot,
-                            block_time,
                             received_time,
-                            source: "LaserStream".to_string(),
                             latency_ms: latency,
                         };
 
@@ -201,15 +211,13 @@ async fn monitor_rpc(
     rpc: RPCConfig,
     duration_minutes: u64,
     shared_blocks: SharedBlocks,
-    verbose: bool
+    verbose: bool,
 ) -> Result<()> {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()?;
+    let client = Client::builder().timeout(Duration::from_secs(10)).build()?;
 
     let start_time = SystemTime::now();
     let duration = Duration::from_secs(duration_minutes * 60);
-    
+
     let current_slot = get_latest_slot(&client, &rpc.url).await?;
     let mut last_slot = current_slot;
 
@@ -220,17 +228,13 @@ async fn monitor_rpc(
                     // Process only the latest slot for real-time comparison
                     match get_block_time(&client, &rpc.url, current_slot).await {
                         Ok(Some(block_time)) => {
-                            let received_time = SystemTime::now()
-                                .duration_since(UNIX_EPOCH)?
-                                .as_millis() as i64;
-                            
+                            let received_time =
+                                SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as i64;
+
                             let latency = received_time - (block_time * 1000);
 
                             let block_event = BlockEvent {
-                                slot: current_slot,
-                                block_time: Some(block_time),
                                 received_time,
-                                source: "RPC".to_string(),
                                 latency_ms: Some(latency),
                             };
 
@@ -247,7 +251,10 @@ async fn monitor_rpc(
                         }
                         Ok(None) => {
                             if verbose {
-                                println!("RPC    | {} | Block time not available yet", current_slot);
+                                println!(
+                                    "RPC    | {} | Block time not available yet",
+                                    current_slot
+                                );
                             }
                         }
                         Err(e) => {
@@ -265,7 +272,7 @@ async fn monitor_rpc(
                 }
             }
         }
-        
+
         time::sleep(Duration::from_millis(500)).await;
     }
 
@@ -275,7 +282,7 @@ async fn monitor_rpc(
 fn announce_winner(slot: u64, ls_event: &BlockEvent, rpc_event: &BlockEvent) {
     let ls_latency = ls_event.latency_ms.unwrap_or(0);
     let rpc_latency = rpc_event.latency_ms.unwrap_or(0);
-    
+
     let (winner, advantage) = if ls_event.received_time < rpc_event.received_time {
         let diff = rpc_event.received_time - ls_event.received_time;
         ("🏆 LaserStream", format!("{}ms", diff))
@@ -302,11 +309,15 @@ fn announce_winner(slot: u64, ls_event: &BlockEvent, rpc_event: &BlockEvent) {
         "🔴 SLOW"
     };
 
-    println!("{:<10} | {:<15} | {:<15} | {:<15} | {:<9} | {}", 
-        slot, winner, 
+    println!(
+        "{:<10} | {:<15} | {:<15} | {:<15} | {:<9} | {}",
+        slot,
+        winner,
         format!("{}ms", ls_latency),
-        format!("{}ms", rpc_latency), 
-        advantage, overall_status);
+        format!("{}ms", rpc_latency),
+        advantage,
+        overall_status
+    );
 }
 
 fn get_latency_status(latency_ms: i64) -> &'static str {

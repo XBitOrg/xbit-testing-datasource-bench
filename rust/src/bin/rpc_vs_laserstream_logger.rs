@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::Parser;
 use futures::StreamExt;
 use helius_laserstream::{
@@ -10,7 +11,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
-use anyhow::Result;
 
 #[derive(Parser)]
 #[command(name = "rpc-vs-laserstream-logger")]
@@ -19,10 +19,18 @@ struct Args {
     #[arg(long, help = "Helius API key")]
     api_key: Option<String>,
 
-    #[arg(long, default_value = "https://laserstream-mainnet-tyo.helius-rpc.com", help = "Helius Laserstream endpoint")]
+    #[arg(
+        long,
+        default_value = "https://laserstream-mainnet-tyo.helius-rpc.com",
+        help = "Helius Laserstream endpoint"
+    )]
     endpoint: String,
 
-    #[arg(long, default_value = "../shared/config.json", help = "Config file path")]
+    #[arg(
+        long,
+        default_value = "../shared/config.json",
+        help = "Config file path"
+    )]
     config: String,
 
     #[arg(long, default_value = "3", help = "Test duration in minutes")]
@@ -65,7 +73,9 @@ struct BlockInfo {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let api_key = args.api_key.clone()
+    let api_key = args
+        .api_key
+        .clone()
         .or_else(|| std::env::var("HELIUS_API_KEY").ok())
         .unwrap_or_else(|| "9de07723-0030-4ee0-b175-6722231d5d97".to_string());
 
@@ -76,9 +86,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     let config = load_config(&args.config)?;
-    
+
     // Get premium RPC (Helius) or fallback to first active RPC
-    let rpc = config.rpcs.values()
+    let rpc = config
+        .rpcs
+        .values()
         .find(|r| r.provider == "Helius" && r.status == "active")
         .or_else(|| config.rpcs.values().find(|r| r.status == "active"))
         .ok_or_else(|| anyhow::anyhow!("No active RPCs found"))?;
@@ -94,14 +106,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         api_key.clone(),
         args.endpoint.clone(),
         args.duration,
-        args.verbose
+        args.verbose,
     ));
 
-    let rpc_handle = tokio::spawn(monitor_rpc(
-        rpc.clone(),
-        args.duration,
-        args.verbose
-    ));
+    let rpc_handle = tokio::spawn(monitor_rpc(rpc.clone(), args.duration, args.verbose));
 
     println!("🚀 Starting dual monitoring...");
     println!("📡 Laserstream: Real-time gRPC stream");
@@ -113,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Wait for both to complete
     let (laserstream_result, rpc_result) = tokio::join!(laserstream_handle, rpc_handle);
-    
+
     let laserstream_blocks = laserstream_result??;
     let rpc_blocks = rpc_result??;
 
@@ -134,7 +142,7 @@ async fn monitor_laserstream(
     api_key: String,
     endpoint: String,
     duration_minutes: u64,
-    verbose: bool
+    verbose: bool,
 ) -> Result<Vec<BlockInfo>> {
     let config = LaserstreamConfig {
         api_key,
@@ -169,9 +177,8 @@ async fn monitor_laserstream(
         if let Some(result) = stream.next().await {
             match result {
                 Ok(update) => {
-                    let received_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)?
-                        .as_millis() as i64;
+                    let received_time =
+                        SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as i64;
 
                     // Print raw Laserstream update as JSON
                     println!("🔥 LASERSTREAM RAW UPDATE:");
@@ -193,38 +200,54 @@ async fn monitor_laserstream(
                     });
                     println!("}}");
 
-                    if let Some(helius_laserstream::grpc::subscribe_update::UpdateOneof::Block(block)) = update.update_oneof {
+                    if let Some(helius_laserstream::grpc::subscribe_update::UpdateOneof::Block(
+                        block,
+                    )) = update.update_oneof
+                    {
                         // Calculate both types of latency
-                        let laserstream_created_time = update.created_at
+                        let laserstream_created_time = update
+                            .created_at
                             .map(|ts| (ts.seconds * 1000) + (ts.nanos as i64 / 1_000_000));
-                        
-                        let network_latency = laserstream_created_time
-                            .map(|created| received_time - created);
-                        
+
+                        let network_latency =
+                            laserstream_created_time.map(|created| received_time - created);
+
                         let block_time = block.block_time.map(|bt| bt.timestamp);
-                        let propagation_latency = block_time
-                            .map(|bt| received_time - (bt * 1000));
+                        let propagation_latency = block_time.map(|bt| received_time - (bt * 1000));
 
                         println!("📦 LASERSTREAM BLOCK DETAILS:");
                         println!("{{");
                         println!("  \"slot\": {},", block.slot);
                         println!("  \"parent_slot\": {},", block.parent_slot);
-                        println!("  \"block_height\": {:?},", block.block_height.as_ref().map(|bh| bh.block_height));
+                        println!(
+                            "  \"block_height\": {:?},",
+                            block.block_height.as_ref().map(|bh| bh.block_height)
+                        );
                         println!("  \"block_time\": {:?},", block_time);
-                        println!("  \"laserstream_created_time\": {:?},", laserstream_created_time.map(|t| t / 1000));
+                        println!(
+                            "  \"laserstream_created_time\": {:?},",
+                            laserstream_created_time.map(|t| t / 1000)
+                        );
                         println!("  \"network_latency_ms\": {:?},", network_latency);
                         println!("  \"propagation_latency_ms\": {:?},", propagation_latency);
                         println!("  \"transaction_count\": {},", block.transactions.len());
                         println!("  \"blockhash\": \"{}\",", block.blockhash);
                         println!("  \"parent_blockhash\": \"{}\",", block.parent_blockhash);
-                        println!("  \"rewards_count\": {}", block.rewards.map(|rewards| rewards.rewards.len()).unwrap_or(0));
+                        println!(
+                            "  \"rewards_count\": {}",
+                            block
+                                .rewards
+                                .map(|rewards| rewards.rewards.len())
+                                .unwrap_or(0)
+                        );
                         println!("}}");
                         println!();
                         println!();
-                        
+
                         let slot = block.slot;
                         let parent_slot = block.parent_slot;
-                        let block_height = block.block_height.map(|bh| bh.block_height).unwrap_or(0);
+                        let block_height =
+                            block.block_height.map(|bh| bh.block_height).unwrap_or(0);
                         let tx_count = block.transactions.len();
 
                         let block_info = BlockInfo {
@@ -258,16 +281,14 @@ async fn monitor_laserstream(
 async fn monitor_rpc(
     rpc: RPCConfig,
     duration_minutes: u64,
-    verbose: bool
+    verbose: bool,
 ) -> Result<Vec<BlockInfo>> {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()?;
+    let client = Client::builder().timeout(Duration::from_secs(10)).build()?;
 
     let mut blocks = Vec::new();
     let start_time = SystemTime::now();
     let duration = Duration::from_secs(duration_minutes * 60);
-    
+
     let current_slot = get_latest_slot(&client, &rpc.url).await?;
     let mut last_slot = current_slot;
 
@@ -302,8 +323,8 @@ async fn monitor_rpc(
                 }
             }
         }
-        
-        time::sleep(Duration::from_millis(900)).await;  // Moderate polling for premium RPC
+
+        time::sleep(Duration::from_millis(900)).await; // Moderate polling for premium RPC
     }
 
     Ok(blocks)
@@ -323,7 +344,10 @@ async fn get_latest_slot(client: &Client, rpc_url: &str) -> Result<u64> {
 
     // Print raw RPC getSlot response
     println!("🌐 RPC getSlot RESPONSE:");
-    println!("{}", serde_json::to_string_pretty(&json_value).unwrap_or_else(|_| response_text.clone()));
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json_value).unwrap_or_else(|_| response_text.clone())
+    );
     println!();
 
     if let Some(slot) = json_value.get("result").and_then(|v| v.as_u64()) {
@@ -334,9 +358,7 @@ async fn get_latest_slot(client: &Client, rpc_url: &str) -> Result<u64> {
 }
 
 async fn get_block_info(client: &Client, rpc_url: &str, slot: u64) -> Result<Option<BlockInfo>> {
-    let received_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)?
-        .as_millis() as i64;
+    let received_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as i64;
 
     let request = json!({
         "jsonrpc": "2.0",
@@ -360,7 +382,10 @@ async fn get_block_info(client: &Client, rpc_url: &str, slot: u64) -> Result<Opt
 
     // Print raw RPC getBlock response
     println!("🌐 RPC RAW RESPONSE for slot {}:", slot);
-    println!("{}", serde_json::to_string_pretty(&json_value).unwrap_or_else(|_| response_text.clone()));
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json_value).unwrap_or_else(|_| response_text.clone())
+    );
     println!();
 
     if let Some(result) = json_value.get("result") {
@@ -371,8 +396,9 @@ async fn get_block_info(client: &Client, rpc_url: &str, slot: u64) -> Result<Opt
         let block_time = result.get("blockTime").and_then(|v| v.as_i64());
         let parent_slot = result.get("parentSlot").and_then(|v| v.as_u64());
         let block_height = result.get("blockHeight").and_then(|v| v.as_u64());
-        
-        let tx_count = result.get("transactions")
+
+        let tx_count = result
+            .get("transactions")
             .and_then(|txs| txs.as_array())
             .map(|arr| arr.len());
 
@@ -394,36 +420,43 @@ async fn get_block_info(client: &Client, rpc_url: &str, slot: u64) -> Result<Opt
 }
 
 fn log_block_info(block: &BlockInfo, verbose: bool) {
-    let propagation_latency = block.propagation_latency_ms
-        .map(|l| format!("{}ms", l))
-        .unwrap_or_else(|| "N/A".to_string());
-    
-    let network_latency = block.network_latency_ms
+    let propagation_latency = block
+        .propagation_latency_ms
         .map(|l| format!("{}ms", l))
         .unwrap_or_else(|| "N/A".to_string());
 
-    let block_time_str = block.block_time
+    let network_latency = block
+        .network_latency_ms
+        .map(|l| format!("{}ms", l))
+        .unwrap_or_else(|| "N/A".to_string());
+
+    let block_time_str = block
+        .block_time
         .map(|bt| format!("{}", bt))
         .unwrap_or_else(|| "N/A".to_string());
 
-    let parent_str = block.parent_slot
+    let parent_str = block
+        .parent_slot
         .map(|p| format!("{}", p))
         .unwrap_or_else(|| "N/A".to_string());
 
-    let height_str = block.block_height
+    let height_str = block
+        .block_height
         .map(|h| format!("{}", h))
         .unwrap_or_else(|| "N/A".to_string());
 
-    let tx_str = block.transaction_count
+    let tx_str = block
+        .transaction_count
         .map(|c| format!("{}", c))
         .unwrap_or_else(|| "N/A".to_string());
 
     if block.source == "LASERSTREAM" {
-        println!("{:<10} | {:<8} | {:<10} | {:<8} | Net:{:<6} | Prop:{:<6} | {:<6} | {:<6} | {:<3}", 
-            block.source, 
-            block.slot, 
-            block_time_str, 
-            block.received_time / 1000, 
+        println!(
+            "{:<10} | {:<8} | {:<10} | {:<8} | Net:{:<6} | Prop:{:<6} | {:<6} | {:<6} | {:<3}",
+            block.source,
+            block.slot,
+            block_time_str,
+            block.received_time / 1000,
             network_latency,
             propagation_latency,
             parent_str,
@@ -431,11 +464,12 @@ fn log_block_info(block: &BlockInfo, verbose: bool) {
             tx_str
         );
     } else {
-        println!("{:<10} | {:<8} | {:<10} | {:<8} | {:<13} | Prop:{:<6} | {:<6} | {:<6} | {:<3}", 
-            block.source, 
-            block.slot, 
-            block_time_str, 
-            block.received_time / 1000, 
+        println!(
+            "{:<10} | {:<8} | {:<10} | {:<8} | {:<13} | Prop:{:<6} | {:<6} | {:<6} | {:<3}",
+            block.source,
+            block.slot,
+            block_time_str,
+            block.received_time / 1000,
             "N/A",
             propagation_latency,
             parent_str,
@@ -458,7 +492,10 @@ fn log_block_info(block: &BlockInfo, verbose: bool) {
 }
 
 fn print_block_comparison(blocks: &[BlockInfo]) {
-    let laserstream_blocks: Vec<_> = blocks.iter().filter(|b| b.source == "LASERSTREAM").collect();
+    let laserstream_blocks: Vec<_> = blocks
+        .iter()
+        .filter(|b| b.source == "LASERSTREAM")
+        .collect();
     let rpc_blocks: Vec<_> = blocks.iter().filter(|b| b.source == "RPC").collect();
 
     println!("{}", "=".repeat(60));
@@ -473,20 +510,28 @@ fn print_block_comparison(blocks: &[BlockInfo]) {
             .iter()
             .filter_map(|b| b.network_latency_ms)
             .collect();
-            
+
         let propagation_latencies: Vec<i64> = laserstream_blocks
             .iter()
             .filter_map(|b| b.propagation_latency_ms)
             .collect();
 
         if !network_latencies.is_empty() {
-            let avg_network = network_latencies.iter().sum::<i64>() as f64 / network_latencies.len() as f64;
-            println!("⚡ Laserstream Average Network Latency: {:.1}ms", avg_network);
+            let avg_network =
+                network_latencies.iter().sum::<i64>() as f64 / network_latencies.len() as f64;
+            println!(
+                "⚡ Laserstream Average Network Latency: {:.1}ms",
+                avg_network
+            );
         }
-        
+
         if !propagation_latencies.is_empty() {
-            let avg_propagation = propagation_latencies.iter().sum::<i64>() as f64 / propagation_latencies.len() as f64;
-            println!("📡 Laserstream Average Propagation Latency: {:.1}ms", avg_propagation);
+            let avg_propagation = propagation_latencies.iter().sum::<i64>() as f64
+                / propagation_latencies.len() as f64;
+            println!(
+                "📡 Laserstream Average Propagation Latency: {:.1}ms",
+                avg_propagation
+            );
         }
     }
 
@@ -497,7 +542,8 @@ fn print_block_comparison(blocks: &[BlockInfo]) {
             .collect();
 
         if !rpc_propagation_latencies.is_empty() {
-            let avg_rpc = rpc_propagation_latencies.iter().sum::<i64>() as f64 / rpc_propagation_latencies.len() as f64;
+            let avg_rpc = rpc_propagation_latencies.iter().sum::<i64>() as f64
+                / rpc_propagation_latencies.len() as f64;
             println!("🌐 RPC Average Propagation Latency: {:.1}ms", avg_rpc);
         }
     }
@@ -515,15 +561,17 @@ fn print_block_comparison(blocks: &[BlockInfo]) {
         println!("🔄 Common Slots (Direct Comparison):");
         println!("Slot      | Laserstream        | RPC      | Prop Diff");
         println!("{}", "-".repeat(55));
-        
+
         for (ls, rpc) in common_slots.iter().take(10) {
             let ls_network = ls.network_latency_ms.unwrap_or(0);
             let ls_propagation = ls.propagation_latency_ms.unwrap_or(0);
             let rpc_propagation = rpc.propagation_latency_ms.unwrap_or(0);
             let propagation_diff = rpc_propagation - ls_propagation;
-            
-            println!("{:<8} | Net:{:<4}ms Prop:{:<4}ms | Prop:{:<4}ms | {:+}ms", 
-                ls.slot, ls_network, ls_propagation, rpc_propagation, propagation_diff);
+
+            println!(
+                "{:<8} | Net:{:<4}ms Prop:{:<4}ms | Prop:{:<4}ms | {:+}ms",
+                ls.slot, ls_network, ls_propagation, rpc_propagation, propagation_diff
+            );
         }
     }
 

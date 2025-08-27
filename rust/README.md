@@ -19,199 +19,123 @@ cd rust
 cargo build --release
 ```
 
-## 📊 Available Tools
+## 📊 Latency Calculator - Primary Tool
 
-### 1. Laserstream Benchmark
-Test Helius Laserstream block propagation latency in isolation.
+### How We Calculate Latency
 
-```bash
-# Test with your API key
-HELIUS_API_KEY=your_key cargo run --bin laserstream_benchmark -- --duration 3
+**Formula**: `received_time - (block_time * 1000)`
 
-# Test with hardcoded fallback (for quick testing)
-cargo run --bin laserstream_benchmark -- --duration 2
+- **block_time**: Unix timestamp when block was created (from blockchain)
+- **received_time**: Local timestamp when we received the block
+- **latency_ms**: Time difference showing propagation delay
 
-# JSON output for analysis
-cargo run --bin laserstream_benchmark -- --duration 2 --json
-```
+This measures **real network propagation latency** - how long it takes for block data to travel from Solana validators to your application.
 
-### 2. RPC vs Laserstream Logger
-**Side-by-side comparison** of Laserstream vs regular RPC providers with detailed logging.
+### Usage
 
 ```bash
-# Basic comparison logging
-cargo run --bin rpc_vs_laserstream_logger
+# Test RPC latency for 1000 blocks
+cargo run --bin latency_calculator -- --method rpc --endpoint https://api.mainnet-beta.solana.com --blocks 1000
 
-# Verbose logging with full block details
-cargo run --bin rpc_vs_laserstream_logger -- --verbose --duration 2
+# Test gRPC (Laserstream) latency for 500 blocks
+cargo run --bin latency_calculator -- --method grpc --endpoint https://laserstream-mainnet-tyo.helius-rpc.com --api-key YOUR_KEY --blocks 500
 
-# Short test
-cargo run --bin rpc_vs_laserstream_logger -- --duration 1
+# Use environment variable for API key
+HELIUS_API_KEY=your_key cargo run --bin latency_calculator -- --method grpc --endpoint https://laserstream-mainnet-tyo.helius-rpc.com --blocks 100
+
+# Verbose logging
+cargo run --bin latency_calculator -- --method rpc --endpoint https://api.mainnet-beta.solana.com --blocks 100 --verbose
 ```
 
-**Features:**
-- **Simultaneous monitoring** of both sources
-- **Real-time comparison** display
-- **Detailed block information** (slot, timestamp, parent, height, tx count)
-- **Direct latency comparison** for common blocks
-- **Performance insights** and recommendations
+### Parameters
 
-**Actual Output** (Method 3 - Block Propagation):
-```
-SOURCE     | Slot      | Block Time | Received  | Propagation | Parent    | Height    | TXs
-LASERSTREAM| 359544908 | 1754995610 | 1754995611| 1431ms     | 359544907 | 337729940 | 1636
-RPC        | 359544908 | 1754995610 | 1754995612| 2400ms     | 359544907 | 337729940 | 1636
+- `--method <rpc|grpc>`: Choose testing method
+- `--endpoint <URL>`: Target endpoint URL
+- `--api-key <KEY>`: API key for gRPC (optional, uses HELIUS_API_KEY env var)
+- `--blocks <NUMBER>`: Number of blocks to test for average calculation
+- `--verbose`: Enable detailed logging
 
-Key Insight: Similar block times, different delivery speeds
-- LaserStream: 1431ms propagation (push-based, real-time)
-- RPC: 2400ms propagation (polling-based, 500ms intervals + processing)
-```
-
-## 🔧 Configuration
-
-The tools automatically use RPC configurations from `../shared/config.json`. Example:
-
-```json
-{
-  "rpcs": {
-    "helius-mainnet": {
-      "id": "helius-mainnet",
-      "name": "Helius Mainnet",
-      "url": "https://mainnet.helius-rpc.com/?api-key=YOUR_KEY",
-      "provider": "Helius",
-      "tier": "premium",
-      "status": "active"
-    }
-  }
-}
-```
-
-## 📈 Understanding Results (Realistic Solana Performance)
-
-### 🎯 Realistic Block Propagation Latency Categories
-**Based on 400ms lab-tested minimum (Solana Leader's neighbor)**
-
-- **🟢 Excellent**: <900ms - Outstanding real-world performance
-- **🟡 Good**: 900-1200ms - Solid performance for most applications
-- **🟠 Fair**: 1200-2000ms - Acceptable for general use cases  
-- **🔴 Slow**: >2000ms - Consider faster provider/region
-
-### Target Performance (Realistic Expectations)
-- **Ultra-fast applications**: <900ms (LaserStream + co-location required)
-- **High-performance applications**: 900-1200ms (achievable with good setup)
-- **General applications**: 1200-2000ms (acceptable for most use cases)
-- **⚠️ Don't target <400ms**: Physically impossible except lab conditions
-
-### Actual Test Results (Method 3 - Block Propagation)
-
-Slot       | Winner           | LaserStream     | RPC            | Advantage   | Status
----------------------------------------------------------------------------
-359748062  | 🏆 LaserStream   | 2175ms          | 3014ms          | 839ms     | 🔴 SLOW
-
-359748066  | 🏆 LaserStream   | 1390ms          | 2052ms          | 662ms     | 🟠 FAIR
-
-359748069  | 🏆 LaserStream   | 1614ms          | 2375ms          | 761ms     | 🟠 FAIR
-
-359748073  | 🏆 LaserStream   | 1175ms          | 2113ms          | 938ms     | 🟡 GOOD
-
-359748077  | 🏆 LaserStream   | 1649ms          | 2248ms          | 599ms     | 🟠 FAIR
-
-359748080  | 🏆 LaserStream   | 1789ms          | 2528ms          | 739ms     | 🟠 FAIR
-
-359748083  | 🏆 LaserStream   | 861ms           | 2078ms          | 1217ms    | 🟢 EXCELLENT
-
-359748087  | 🏆 LaserStream   | 1435ms          | 2193ms          | 758ms     | 🟠 FAIR
-
-359748091  | 🏆 LaserStream   | 853ms           | 1485ms          | 632ms     | 🟢 EXCELLENT
-
-359748094  | 🏆 LaserStream   | 1044ms          | 3190ms          | 2146ms    | 🟡 GOOD
-
-359748101  | 🏆 LaserStream   | 1666ms          | 2310ms          | 644ms     | 🟠 FAIR
-
-359748104  | 🏆 LaserStream   | 841ms           | 1372ms          | 531ms     | 🟢 EXCELLENT
-
-359748107  | 🏆 LaserStream   | 964ms           | 1567ms          | 603ms     | 🟡 GOOD
-
-359748110  | 🏆 LaserStream   | 1107ms          | 1607ms          | 500ms     | 🟡 GOOD
-
-359748113  | 🏆 LaserStream   | 1387ms          | 2347ms          | 960ms     | 🟠 FAIR
-
-359748117  | 🏆 LaserStream   | 929ms           | 1737ms          | 808ms     | 🟡 GOOD
-
-359748120  | 🏆 LaserStream   | 1081ms          | 1756ms          | 675ms     | 🟡 GOOD
-
-359748123  | 🏆 LaserStream   | 1159ms          | 1764ms          | 605ms     | 🟡 GOOD
-
-359748126  | 🏆 LaserStream   | 1253ms          | 2264ms          | 1011ms    | 🟠 FAIR
-
-359748130  | 🏆 LaserStream   | 787ms           | 1093ms          | 306ms     | 🟢 EXCELLENT
-
-359748132  | 🏆 LaserStream   | 1569ms          | 2300ms          | 731ms     | 🟠 FAIR
-
-359748135  | 🏆 LaserStream   | 1650ms          | 2538ms          | 888ms     | 🟠 FAIR
-
-359748139  | 🏆 LaserStream   | 1133ms          | 1387ms          | 254ms     | 🟡 GOOD
-
-359748141  | 🏆 LaserStream   | 873ms           | 1755ms          | 882ms     | 🟢 EXCELLENT
-
-359748145  | 🏆 LaserStream   | 1375ms          | 1724ms          | 349ms     | 🟠 FAIR
-
-359748147  | 🏆 LaserStream   | 1096ms          | 1635ms          | 539ms     | 🟡 GOOD
-
-359748150  | 🏆 LaserStream   | 1215ms          | 1643ms          | 428ms     | 🟠 FAIR
-
-359748152  | 🏆 LaserStream   | 993ms           | 1773ms          | 780ms     | 🟡 GOOD
-
-359748155  | 🏆 LaserStream   | 1083ms          | 1730ms          | 647ms     | 🟡 GOOD
-
-#### Key Observations:
-- **Both services show similar Method 3 results** (~1300-1400ms)
-- **This is expected** - both get data from same Solana validators
-- **LaserStream advantage** is in delivery consistency, not block freshness
-- **Geographic location matters** - Tokyo endpoint adds ~200-400ms vs US
-
-#### Performance Summary:
-- **Excellent**: <900ms (rare, requires optimal conditions)
-- **Good**: 900-1200ms (achievable with co-location)
-- **Fair**: 1200-2000ms (typical real-world performance) ← **Most results fall here**
-- **Slow**: >2000ms (poor provider or network issues)
-
-### Service-Level Performance (Methods 1 & 2 - Secondary Metrics)
-
-#### Method 1 (LaserStream Consistency):
-- **Parallel stream differences**: 5-30ms (excellent consistency)
-- **Purpose**: Measure LaserStream internal performance variation
-- **Useful for**: Service SLA monitoring
-
-#### Method 2 Results (Service Quality - Problematic):
-- **LaserStream**: -67ms (clock skew issue - use absolute value = 67ms service latency)
-- **RPC**: 111ms HTTP round-trip (irrelevant for applications)
-- **Conclusion**: Method 2 has issues, focus on Method 3
-
-**Bottom line**: Method 3 (Block Propagation) is the only reliable metric for application performance.
-
----
-
-## 🔍 Data Sources and API Details
-
-**LaserStream Data Available**:
-```json
-{
-  "slot": 359740737,
-  "parent_slot": 359740736,
-  "block_height": 337925407,
-  "block_time": 1755072653,
-  "laserstream_created_time": 1755072653,
-  "network_latency_ms": 18332,
-  "propagation_latency_ms": 19260,
-  "transaction_count": 1298,
-  "blockhash": "Gtihvx886E3yecRuFnvctkoEqjkG3pazc8oXGSPpRbYR",
-  "parent_blockhash": "6Y2EkHiiXHV5NxXnbCoo52BqcsEkuvQxV6uH6cB99jUN",
-  "rewards_count": 1
-}
+### Output Example
 
 ```
+🚀 Latency Calculator
+Method: Rpc
+Endpoint: https://api.mainnet-beta.solana.com
+Target blocks: 100
 
-**Testing Methodology Verified** ✅  
-**Laserstream Data Structures Documented** ✅  
-**Performance Comparison Completed** ✅
+📡 Starting RPC latency measurement...
+Slot       | Block Time    | Received Time | Latency   | Status
+----------------------------------------------------------------------
+293847291  | 1735123456    | 1735123459    | 843ms     | 🟢 EXCELLENT
+293847292  | 1735123458    | 1735123461    | 1205ms    | 🟡 GOOD
+293847293  | 1735123460    | 1735123463    | 1687ms    | 🟠 FAIR
+
+📊 Latency Results Summary
+==================================================
+Method:             Rpc
+Endpoint:           https://api.mainnet-beta.solana.com
+Blocks processed:   100
+Average latency:    1247.3ms
+Min latency:        567ms
+Max latency:        3421ms
+Median latency:     1189ms
+95th percentile:    2103ms
+99th percentile:    2847ms
+
+⚡ Performance Distribution:
+🟢 Excellent (<500ms):   12/100 (12.0%)
+🟡 Good (500-1000ms):    34/100 (34.0%)
+🟠 Fair (1000-2000ms):   42/100 (42.0%)
+🔴 Slow (>2000ms):       12/100 (12.0%)
+
+🎯 Overall Assessment:
+🟡 GOOD - Acceptable latency for most use cases
+```
+
+### Performance Categories
+
+- **🟢 Excellent (<500ms)**: Outstanding real-world performance
+- **🟡 Good (500-1000ms)**: Solid performance for most applications
+- **🟠 Fair (1000-2000ms)**: Acceptable for general use cases
+- **🔴 Slow (>2000ms)**: Consider faster provider/region
+
+## 🔍 Technical Details
+
+### Latency Calculation Methodology
+
+**Both RPC and gRPC use identical calculation:**
+```rust
+let latency_ms = received_time - (block_time * 1000);
+```
+
+**Where:**
+- `received_time`: System timestamp when block data arrives (milliseconds)
+- `block_time`: Blockchain timestamp when block was created (seconds, converted to ms)
+- `latency_ms`: Total propagation delay from creation to reception
+
+**RPC Method:**
+- Polls `getSlot()` every 500ms to detect new blocks
+- Calls `getBlockTime(slot)` to get creation timestamp
+- Measures time from block creation to RPC response
+
+**gRPC Method:**
+- Real-time stream receives blocks as they're processed
+- Uses `block.block_time.timestamp` from stream data
+- Measures time from block creation to stream reception
+
+### Why This Matters
+
+This latency represents the **real-world delay** your application experiences when receiving blockchain data. Lower latency means:
+- Faster arbitrage opportunities
+- Better user experience for real-time apps
+- More accurate market data
+- Reduced risk of stale information
+
+### Realistic Expectations
+
+Solana mainnet block propagation has physical limits:
+- **Minimum possible**: ~400ms (perfect conditions, co-located)
+- **Typical excellent**: 500-800ms (premium providers)
+- **Good performance**: 800-1500ms (standard setups)
+- **Fair performance**: 1500-3000ms (acceptable for most apps)
+- **Poor performance**: >3000ms (investigate provider/network)

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::Parser;
 use reqwest::Client;
 use serde_json::{json, Value};
@@ -5,13 +6,16 @@ use std::collections::HashMap;
 use std::fs;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
-use anyhow::Result;
 
 #[derive(Parser)]
 #[command(name = "rpc-latency-test")]
 #[command(about = "Measure RPC latency using processed slot detection")]
 struct Args {
-    #[arg(long, default_value = "../shared/config.json", help = "Config file path")]
+    #[arg(
+        long,
+        default_value = "../shared/config.json",
+        help = "Config file path"
+    )]
     config: String,
 
     #[arg(long, default_value = "2", help = "Test duration in minutes")]
@@ -55,14 +59,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     let config = load_config(&args.config)?;
-    
+
     // Select RPC based on provider preference
     let rpc = if let Some(provider) = &args.provider {
-        config.rpcs.values()
-            .find(|r| r.provider.to_lowercase().contains(&provider.to_lowercase()) && r.status == "active")
+        config
+            .rpcs
+            .values()
+            .find(|r| {
+                r.provider.to_lowercase().contains(&provider.to_lowercase()) && r.status == "active"
+            })
             .ok_or_else(|| anyhow::anyhow!("No active RPC found for provider: {}", provider))?
     } else {
-        config.rpcs.values()
+        config
+            .rpcs
+            .values()
             .find(|r| r.provider == "Helius" && r.status == "active")
             .or_else(|| config.rpcs.values().find(|r| r.status == "active"))
             .ok_or_else(|| anyhow::anyhow!("No active RPCs found"))?
@@ -82,20 +92,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn monitor_slot_latency(
     rpc: RPCConfig,
     duration_minutes: u64,
-    verbose: bool
+    verbose: bool,
 ) -> Result<Vec<SlotLatency>> {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()?;
+    let client = Client::builder().timeout(Duration::from_secs(5)).build()?;
 
     let mut latencies = Vec::new();
     let start_time = SystemTime::now();
     let duration = Duration::from_secs(duration_minutes * 60);
-    
+
     println!("🚀 Starting slot latency monitoring...");
     println!("📊 Checking new slots every 400ms");
     println!();
-    
+
     if !verbose {
         println!("Slot      | Block Time   | Detected    | Latency | Status");
         println!("{}", "-".repeat(55));
@@ -108,21 +116,20 @@ async fn monitor_slot_latency(
             Ok(current_slot) => {
                 if current_slot > last_slot {
                     // New slot detected! Now check if we can get its block time
-                    let detected_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)?
-                        .as_millis() as i64;
+                    let detected_time =
+                        SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as i64;
 
                     match get_block_time(&client, &rpc.url, current_slot).await {
                         Ok(Some(block_time)) => {
                             let latency_ms = detected_time - (block_time * 1000);
-                            
+
                             let slot_latency = SlotLatency {
                                 slot: current_slot,
                                 block_time,
                                 detected_time,
                                 latency_ms,
                             };
-                            
+
                             log_slot_latency(&slot_latency, verbose);
                             latencies.push(slot_latency);
                         }
@@ -146,7 +153,7 @@ async fn monitor_slot_latency(
                 }
             }
         }
-        
+
         time::sleep(Duration::from_millis(400)).await;
     }
 
@@ -214,11 +221,15 @@ fn log_slot_latency(latency: &SlotLatency, verbose: bool) {
     if verbose {
         println!("🎯 Slot {} Latency Analysis:", latency.slot);
         println!("   Block Created: {} (Unix timestamp)", latency.block_time);
-        println!("   RPC Detected:  {} (Unix timestamp ms)", latency.detected_time);
+        println!(
+            "   RPC Detected:  {} (Unix timestamp ms)",
+            latency.detected_time
+        );
         println!("   Latency:       {}ms {}", latency.latency_ms, status);
         println!();
     } else {
-        println!("{:<9} | {:<12} | {:<11} | {:<7}ms | {}", 
+        println!(
+            "{:<9} | {:<12} | {:<11} | {:<7}ms | {}",
             latency.slot,
             latency.block_time,
             latency.detected_time / 1000,
@@ -237,10 +248,10 @@ fn print_latency_results(latencies: &[SlotLatency]) {
     let latency_values: Vec<i64> = latencies.iter().map(|l| l.latency_ms).collect();
     let count = latency_values.len();
     let avg = latency_values.iter().sum::<i64>() as f64 / count as f64;
-    
+
     let mut sorted = latency_values.clone();
     sorted.sort();
-    
+
     let min = sorted[0];
     let max = sorted[count - 1];
     let median = sorted[count / 2];
@@ -265,12 +276,24 @@ fn print_latency_results(latencies: &[SlotLatency]) {
 
     println!();
     println!("⚡ Performance Distribution:");
-    println!("🟢 Fast (<300ms):     {}/{} ({:.1}%)", 
-        fast_count, count, (fast_count as f64 / count as f64) * 100.0);
-    println!("🟡 Good (<1000ms):    {}/{} ({:.1}%)", 
-        good_count, count, (good_count as f64 / count as f64) * 100.0);
-    println!("🟠 Slow (<3000ms):    {}/{} ({:.1}%)", 
-        slow_count, count, (slow_count as f64 / count as f64) * 100.0);
+    println!(
+        "🟢 Fast (<300ms):     {}/{} ({:.1}%)",
+        fast_count,
+        count,
+        (fast_count as f64 / count as f64) * 100.0
+    );
+    println!(
+        "🟡 Good (<1000ms):    {}/{} ({:.1}%)",
+        good_count,
+        count,
+        (good_count as f64 / count as f64) * 100.0
+    );
+    println!(
+        "🟠 Slow (<3000ms):    {}/{} ({:.1}%)",
+        slow_count,
+        count,
+        (slow_count as f64 / count as f64) * 100.0
+    );
 
     println!();
     println!("🎯 Overall Performance:");
@@ -291,7 +314,7 @@ fn print_latency_results(latencies: &[SlotLatency]) {
     println!();
     println!("📋 Methodology:");
     println!("• Uses getSlot() with processed commitment for slot detection");
-    println!("• Uses getBlockTime() to get block creation timestamp");  
+    println!("• Uses getBlockTime() to get block creation timestamp");
     println!("• Latency = slot_detection_time - block_creation_time");
     println!("• Polling interval: 400ms for real-time detection");
 }
