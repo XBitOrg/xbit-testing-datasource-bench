@@ -40,17 +40,20 @@ cargo run --bin latency_calculator -- --method rpc --endpoint https://api.mainne
 # Test gRPC (Laserstream) latency for 500 blocks
 cargo run --bin latency_calculator -- --method grpc --endpoint https://laserstream-mainnet-tyo.helius-rpc.com --api-key YOUR_KEY --blocks 500
 
-# Use environment variable for API key
+# Test WebSocket latency for 200 blocks
+cargo run --bin latency_calculator -- --method websocket --endpoint wss://api.mainnet-beta.solana.com --blocks 200
+
+# Use environment variable for API key (gRPC)
 HELIUS_API_KEY=your_key cargo run --bin latency_calculator -- --method grpc --endpoint https://laserstream-mainnet-tyo.helius-rpc.com --blocks 100
 
 # Verbose logging
-cargo run --bin latency_calculator -- --method rpc --endpoint https://api.mainnet-beta.solana.com --blocks 100 --verbose
+cargo run --bin latency_calculator -- --method websocket --endpoint https://api.mainnet-beta.solana.com --blocks 100 --verbose
 ```
 
 ### Parameters
 
-- `--method <rpc|grpc>`: Choose testing method
-- `--endpoint <URL>`: Target endpoint URL
+- `--method <rpc|grpc|websocket>`: Choose testing method
+- `--endpoint <URL>`: Target endpoint URL (auto-converts HTTP to WebSocket for websocket method)
 - `--api-key <KEY>`: API key for gRPC (optional, uses HELIUS_API_KEY env var)
 - `--blocks <NUMBER>`: Number of blocks to test for average calculation
 - `--verbose`: Enable detailed logging
@@ -122,6 +125,11 @@ let latency_ms = received_time - (block_time * 1000);
 - Real-time stream receives blocks as they're processed
 - Uses `block.block_time.timestamp` from stream data
 - Measures time from block creation to stream reception
+
+**WebSocket Method:**
+- Subscribes to `blockSubscribe` with real-time notifications
+- Uses `block.blockTime` from WebSocket messages
+- Measures time from block creation to WebSocket message reception
 
 ### Why This Matters
 

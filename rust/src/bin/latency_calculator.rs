@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use futures::StreamExt;
+use futures_util::{SinkExt, StreamExt as FuturesStreamExt};
 use helius_laserstream::{
     grpc::{SubscribeRequest, SubscribeRequestFilterBlocks},
     subscribe, LaserstreamConfig,
@@ -10,12 +11,14 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use helius_laserstream::grpc::SubscribeRequestFilterBlocksMeta;
 
 #[derive(Parser)]
 #[command(name = "latency-calculator")]
 #[command(about = "Calculate average latency for RPC or gRPC over specified number of blocks")]
 struct Args {
-    #[arg(long, value_enum, help = "Method to test: rpc or grpc")]
+    #[arg(long, value_enum, help = "Method to test: rpc, grpc, or websocket")]
     method: Method,
 
     #[arg(long, help = "Endpoint URL")]
@@ -35,6 +38,7 @@ struct Args {
 enum Method {
     Rpc,
     Grpc,
+    Websocket,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let measurements = match args.method {
         Method::Rpc => measure_rpc_latency(&args).await?,
         Method::Grpc => measure_grpc_latency(&args).await?,
+        Method::Websocket => measure_websocket_latency(&args).await?,
     };
 
     print_results(&measurements, &args);
@@ -157,21 +162,12 @@ async fn measure_grpc_latency(args: &Args) -> Result<Vec<LatencyMeasurement>> {
         ..Default::default()
     };
 
-    let mut block_filters = HashMap::new();
-    block_filters.insert(
-        "all_blocks".to_string(),
-        SubscribeRequestFilterBlocks {
-            account_include: vec![],
-            include_transactions: Some(false),
-            include_accounts: Some(false),
-            include_entries: Some(false),
-        },
+    let mut request = SubscribeRequest::default();
+    
+    request.blocks_meta.insert(
+        "all".to_string(),
+        SubscribeRequestFilterBlocksMeta::default(),
     );
-
-    let request = SubscribeRequest {
-        blocks: block_filters,
-        ..Default::default()
-    };
 
     let (stream, _handle) = subscribe(config, request);
     futures::pin_mut!(stream);
@@ -191,7 +187,7 @@ async fn measure_grpc_latency(args: &Args) -> Result<Vec<LatencyMeasurement>> {
                         .duration_since(UNIX_EPOCH)?
                         .as_millis() as i64;
 
-                    if let Some(helius_laserstream::grpc::subscribe_update::UpdateOneof::Block(block)) = update.update_oneof {
+                    if let Some(helius_laserstream::grpc::subscribe_update::UpdateOneof::BlockMeta(block)) = update.update_oneof {
                         let slot = block.slot;
                         
                         if let Some(bt) = block.block_time {
@@ -232,6 +228,145 @@ async fn measure_grpc_latency(args: &Args) -> Result<Vec<LatencyMeasurement>> {
                     if args.verbose {
                         eprintln!("gRPC stream error: {}", e);
                     }
+                }
+            }
+        }
+    }
+
+    Ok(measurements)
+}
+
+async fn measure_websocket_latency(args: &Args) -> Result<Vec<LatencyMeasurement>> {
+    let mut measurements = Vec::new();
+    let mut processed_blocks = 0u64;
+
+    println!("📡 Starting WebSocket latency measurement...");
+    println!("Slot       | Block Time    | Received Time | Latency   | Status");
+    println!("{}", "-".repeat(70));
+
+    // Convert HTTP(S) URL to WebSocket URL
+    let ws_url = if args.endpoint.starts_with("https://") {
+        args.endpoint.replace("https://", "wss://")
+    } else if args.endpoint.starts_with("http://") {
+        args.endpoint.replace("http://", "ws://")
+    } else if !args.endpoint.starts_with("ws://") && !args.endpoint.starts_with("wss://") {
+        format!("wss://{}", args.endpoint)
+    } else {
+        args.endpoint.clone()
+    };
+
+    let (ws_stream, _) = connect_async(&ws_url).await?;
+    let (mut write, mut read) = ws_stream.split();
+
+    // Subscribe to block notifications
+    let subscription = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "blockSubscribe",
+        "params": [
+            "all",
+            {
+                "commitment": "processed",
+                "encoding": "json",
+                "transactionDetails": "none",
+                "rewards": false
+            }
+        ]
+    });
+
+    write.send(Message::Text(subscription.to_string())).await?;
+
+    // Handle subscription confirmation and block notifications
+    let mut subscription_confirmed = false;
+    while processed_blocks < args.blocks {
+        let timeout = tokio::time::sleep(Duration::from_secs(30));
+        tokio::pin!(timeout);
+        
+        tokio::select! {
+            msg_result = read.next() => {
+                if let Some(msg) = msg_result {
+                    match msg? {
+                Message::Text(text) => {
+                    let received_time = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)?
+                        .as_millis() as i64;
+
+                    if let Ok(json_msg) = serde_json::from_str::<Value>(&text) {
+                        if args.verbose {
+                            println!("Received WebSocket message: {}", serde_json::to_string_pretty(&json_msg).unwrap_or_else(|_| "Invalid JSON".to_string()));
+                        }
+                        // Check if this is a block notification
+                        if let Some(params) = json_msg.get("params") {
+                            if let Some(result) = params.get("result") {
+                                if let Some(value) = result.get("value") {
+                                    if let Some(block) = value.get("block") {
+                                        let slot = value.get("slot")
+                                            .and_then(|s| s.as_u64())
+                                            .unwrap_or_else(|| {
+                                                block.get("parentSlot")
+                                                    .and_then(|s| s.as_u64())
+                                                    .unwrap_or_default() + 1
+                                            });
+                                        
+                                        if let Some(block_time) = block.get("blockTime").and_then(|bt| bt.as_i64()) {
+                                            let latency_ms = received_time - (block_time * 1000);
+
+                                            // Filter out unrealistic latencies
+                                            if latency_ms > 0 && latency_ms < 10000 {
+                                                let measurement = LatencyMeasurement {
+                                                    slot,
+                                                    block_time,
+                                                    received_time,
+                                                    latency_ms,
+                                                };
+
+                                                let status = get_latency_status(latency_ms);
+                                                
+                                                println!(
+                                                    "{:<10} | {:<12} | {:<12} | {:<9}ms | {}",
+                                                    slot,
+                                                    block_time,
+                                                    received_time / 1000,
+                                                    latency_ms,
+                                                    status
+                                                );
+
+                                                measurements.push(measurement);
+                                                processed_blocks += 1;
+
+                                                if args.verbose {
+                                                    println!("Progress: {}/{} blocks processed", processed_blocks, args.blocks);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else if json_msg.get("result").is_some() {
+                            // Subscription confirmation
+                            subscription_confirmed = true;
+                            if args.verbose {
+                                println!("WebSocket subscription confirmed");
+                            }
+                        }
+                    }
+                }
+                Message::Close(_) => {
+                    println!("WebSocket connection closed");
+                    break;
+                }
+                _ => {}
+                    }
+                } else {
+                    println!("WebSocket connection ended");
+                    break;
+                }
+            }
+            _ = &mut timeout => {
+                if !subscription_confirmed {
+                    return Err(anyhow::anyhow!("WebSocket subscription timeout"));
+                } else {
+                    println!("No new blocks received in 30 seconds, continuing...");
                 }
             }
         }
