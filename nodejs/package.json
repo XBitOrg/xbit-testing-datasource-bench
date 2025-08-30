@@ -15,16 +15,23 @@
   },
   "dependencies": {
     "@solana/web3.js": "^1.87.6",
-    "node-fetch": "^3.3.2",
-    "helius-laserstream": "^0.1.0",
+    "@triton-one/yellowstone-grpc": "^4.0.2",
     "commander": "^11.1.0",
+    "helius-laserstream": "^0.1.0",
+    "node-fetch": "^3.3.2",
     "ws": "^8.16.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
-    "@types/node": "^20.10.5"
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
   },
-  "keywords": ["solana", "rpc", "grpc", "performance", "benchmark"],
+  "keywords": [
+    "solana",
+    "rpc",
+    "grpc",
+    "performance",
+    "benchmark"
+  ],
   "author": "",
   "license": "MIT"
 }
