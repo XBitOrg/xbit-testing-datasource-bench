@@ -10,7 +10,8 @@
     "benchmark": "node benchmark.js",
     "laserstream": "node laserstream-benchmark.js",
     "test-laserstream": "node test-laserstream-connection.js",
-    "websocket-benchmark": "node websocket-block-benchmark.js"
+    "websocket-benchmark": "node websocket-block-benchmark.js",
+    "latency-calculator": "node latency-calculator.js"
   },
   "dependencies": {
     "@solana/web3.js": "^1.87.6",
