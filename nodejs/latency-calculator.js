@@ -143,22 +143,15 @@ async function measureGrpcLatency(args) {
     };
 
     const request = {
-        blocks: {
-            client: {
-                accountInclude: [],
-                accountExclude: [],
-                accountRequired: [],
-                includeTransactions: false,
-                includeAccounts: false,
-                includeEntries: false,
-            }
+        blocksMeta: {
+            all: {}
         },
         commitment: CommitmentLevel.PROCESSED,
         transactions: {},
         accounts: {},
         slots: {},
         transactionsStatus: {},
-        blocksMeta: {},
+        blocks: {},
         entry: {},
         accountsDataSlice: [],
     };
@@ -187,9 +180,9 @@ async function measureGrpcLatency(args) {
                     
                     const receivedTime = Date.now();
                     
-                    if (data.block && processedBlocks < args.blocks) {
-                        const slot = data.block.slot;
-                        const blockTime = data.block.blockTime;
+                    if (data.blockMeta && processedBlocks < args.blocks) {
+                        const slot = data.blockMeta.slot;
+                        const blockTime = data.blockMeta.blockTime?.timestamp;
                         
                         if (blockTime) {
                             const latencyMs = receivedTime - (blockTime * 1000);
