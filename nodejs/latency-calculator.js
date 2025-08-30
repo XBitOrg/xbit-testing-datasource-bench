@@ -123,10 +123,8 @@ async function measureRpcLatency(args) {
 }
 
 async function measureGrpcLatency(args) {
-    const apiKey = args.apiKey || process.env.HELIUS_API_KEY;
-    if (!apiKey) {
-        throw new Error('API key required for gRPC method');
-    }
+    const apiKey = args.apiKey || process.env.HELIUS_API_KEY || "";
+    // Allow empty API key for custom endpoints
 
     const { subscribe, CommitmentLevel } = await import('helius-laserstream');
     
